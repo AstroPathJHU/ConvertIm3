@@ -1,0 +1,2 @@
+# ConvertIm3
+The executable was written by Richard Wilton to extract the bitmap and metadata information from the akoya im3 image files.ConvertIm3Path is a powershell code, added by Benjamin Green and is a soft wrapper for the executable to run on the sample level and is dependent on the images being in the AstropathPipeline directory format. ConvertIm3Cohort.ps1 is a wrapper for ConvertIm3Path.ps1 which runs through all specimens in a directory, the cohort is hard coded at present and should be modified in the code.
