@@ -4,7 +4,7 @@ This is the standalone processing tool for the flatfield and image warping appli
 A single slide can be launched as follows from a command prompt:
 
 ```
-*AstroPathPipline\astropath\hpfs\flatw\flatw_matlab\Im3Tools\doOneSample <base> <FWpath> <SlideID>
+*ConvertIm3\doOneSample <base> <FWpath> <SlideID>
 ```
 - ```<base>```: *\\\\bki04\\Clinical_Specimen* (also refered to as the ```<Dpath>\<Dname>```
 - ```<FWpath>```: This is the full path for the single column flat field and warping image (.fw) as well as the exposure time data for each image (.SpectralBasisInfo.xml). 
