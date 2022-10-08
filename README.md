@@ -1,5 +1,5 @@
 ## Im3tools
-This is the standalone processing tool for the flatfield and image warping applications on a directory of im3 slides. These commands can be used outside of the *AstroPath Pipeline* as long as the slides are still in the aforementioned [directory structure](../../hpfs/imagecorrection/docs/ImportantDefinitions.md#5731-image-correction-expected-directory-structure "Title"). All output described [here](../../hpfs/imagecorrection/docs/ImportantDefinitions.md#5732-output-formatting "Title") result from this tool the rest of the code included in *flatfield* simply allows bulk processing of slides.
+This is the standalone processing tool for the flatfield and image warping applications on a directory of im3 slides. These commands can be used outside of the *AstroPath Pipeline* as long as the slides are still in the astropath directory structure. 
 
 A single slide can be launched as follows from a command prompt:
 
