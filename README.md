@@ -1,18 +1,7 @@
-## Im3tools
-This is the standalone processing tool for the flatfield and image warping applications on a directory of im3 slides. These commands can be used outside of the *AstroPath Pipeline* as long as the slides are still in the astropath directory structure. 
+## ConvertIm3
+The ConvertIm3 executable was written by Richard Wilton to extract\ inject the bitmap and metadata information from the akoya im3 image files. ConvertIm3Path is a powershell code, added by Benjamin Green, and is a soft wrapper for the executable to run on the sample level, with optional inputs and exports. Both codes are dependent on the images being in the AstropathPipeline directory format which is slightly different than the standard Akoya imagery directory format. ConvertIm3Cohort.ps1 is a wrapper for ConvertIm3Path.ps1 which runs through all specimens in a directory, the cohort is hard coded at present and should be modified in the code. All parameters for the ps1 codes are described in the code body, the Usage.txt is for CovertIm3.exe. 
 
-A single slide can be launched as follows from a command prompt:
-
-```
-*ConvertIm3\doOneSample <base> <FWpath> <SlideID>
-```
-- ```<base>```: *\\\\bki04\\Clinical_Specimen* (also refered to as the ```<Dpath>\<Dname>```
-- ```<FWpath>```: This is the full path for the single column flat field and warping image (.fw) as well as the exposure time data for each image (.SpectralBasisInfo.xml). 
-  - This path should preferably located on a different drive from the main path to improve pipeline performance. 
-  - E.g. “bki03\flatw_7”
-- ```<SlideID>```: *AST123456*
-
-## 5.8.5.2. ConvertIm3
+## ConvertIm3
 The ConvertIM3 application reads and writes AKOYA IM3 ("image cube") files.
 
 ConvertIM3 uses a simple set of C# classes to represent the contents of an IM3 file. Unfortunately, the IM3 format is undocumented. There are no software tools available that manage IM3 files directly.  It is more practical to transform IM3 into a well-known format that can be handled by generally-available software.  Since the IM3 format is essentially a hierarchy of self-described groups of data, a straightforward way to work with IM3 is to convert it to and from XML.
@@ -35,7 +24,7 @@ Command-line syntax:
 
 Extended directions can be found [here](./ConvertIM3Usage.txt).
 
-## 5.8.5.3. ConvertIm3Path & ConvertIm3Cohort
+## ConvertIm3Path & ConvertIm3Cohort
 ConvertIm3Path & ConvertIm3Cohort are soft wrappers written in powershell for the executable to run *ConvertIm3* on the ```<SlideID>``` level for specific output desired by the *AstroPathPipeline*, with optional inputs and exports. Both codes are dependent on the images being in the aforementioned [directory structure](../../hpfs/imagecorrection/docs/ImportantDefinitions.md#5731-image-correction-expected-directory-structure "Title"). ConvertIm3Cohort.ps1 is actually just a wrapper for ConvertIm3Path.ps1 which runs through all specimens in a directory, the cohort location is hard coded at present and should be modified in the code. 
  
 Usage: 
