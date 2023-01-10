@@ -327,7 +327,11 @@ function Invoke-IM3Convert {
     #
     # Set up variables
     #
-    $code = "$PSScriptRoot\ConvertIm3.exe"
+    if ($env:OS -contains 'Windows_NT'){
+        $code = "$PSScriptRoot\ConvertIm3.exe"
+    } else {
+        $code = "mono $PSScriptRoot\ConvertIm3.exe"
+    }
     $dat = ".//D[@name='Data']/text()"
     $exp = '"' + ".//G[@name='SpectralBasisInfo']//D[@name='Exposure'] " + '"' #| " + 
             # "(.//G[@name='Protocol']//G[@name='DarkCurrentSettings'])" + '"'
@@ -468,6 +472,9 @@ function Invoke-IM3Convert {
         #
     }
     #
+    if ($cnt -eq 5) {
+        Throw ('The following images failed to process:' + ($images -join ','))
+    }
 }
 #
 function SEARCH-FAILED {
