@@ -330,7 +330,8 @@ function Invoke-IM3Convert {
     if ($env:OS -contains 'Windows_NT'){
         $code = "$PSScriptRoot\ConvertIm3.exe"
     } else {
-        $code = "mono $PSScriptRoot\ConvertIm3.exe"
+        $code = "$PSScriptRoot/ConvertIM3.exe"
+        $dest = $dest -replace '[\\/]', '/'
     }
     $dat = ".//D[@name='Data']/text()"
     $exp = '"' + ".//G[@name='SpectralBasisInfo']//D[@name='Exposure'] " + '"' #| " + 
@@ -353,7 +354,12 @@ function Invoke-IM3Convert {
             Write-Debug ('       attempt:' + $cnt)
             #
             $images | foreach-object -Parallel {
-                & $using:code $_ DAT -x $using:dat -o $using:dest # 2>&1>> $log
+                if ($env:OS -contains 'Windows_NT'){
+                    & $using:code $_ DAT -x $using:dat -o $using:dest # 2>&1>> $log
+                } else {
+                    $command = "mono $using:code $_ DAT -x "+'"'+$using:dat+'"'+" -o $using:dest"
+                    iex $command
+                }
             } -ThrottleLimit 5| Out-File -append $log
             #
             Start-Sleep 2
@@ -376,7 +382,12 @@ function Invoke-IM3Convert {
             Write-Debug ('       attempt:' + $cnt)
             #
             $images | foreach-object -Parallel {
-                & $using:code $_ XML -x $using:exp -o $using:dest # 2>&1>> $log
+                if ($env:OS -contains 'Windows_NT'){
+                    & $using:code $_ XML -x $using:exp -o $using:dest # 2>&1>> $log
+                } else {
+                    $command = "mono $using:code $_ XML -x "+'"'+$using:exp+'"'+" -o $using:dest"
+                    iex $command
+                }
             } -ThrottleLimit 5| Out-File -append $log
             #
             Start-Sleep 2
@@ -393,7 +404,12 @@ function Invoke-IM3Convert {
     if ($FULL){
         #
         $im1 = $images[0]
-        & $code $im1 XML -t 64 -o $dest 2>&1>> "$dest\doShred.log"
+        if ($env:OS -contains 'Windows_NT'){
+            & $code $im1 XML -t 64 -o $dest 2>&1>> "$dest\doShred.log"
+        } else {
+            $command = "mono $code $im1 XML -t 64 -o $dest"
+            iex $command 2>&1>> "$dest/doShred.log"
+        }
         #
         $f = (get-childitem "$dest\*].xml")[0].Name
         $f2 = "$dest\$sample.Full.xml"
@@ -409,7 +425,12 @@ function Invoke-IM3Convert {
     if ($PARMS) {
         #
         $im1 = $images[0]
-        & $code $im1 XML -x $glb_prms -o $dest 2>&1>> "$dest\doShred.log"
+        if ($env:OS -contains 'Windows_NT'){
+            & $code $im1 XML -x $glb_prms -o $dest 2>&1>> "$dest\doShred.log"
+        } else {
+            $command = "mono $code $im1 XML -x "+'"'+$glb_prms+'"'+" -o $dest"
+            iex $command 2>&1>> "$dest/doShred.log"
+        }
         # 
         $f = (get-childitem "$dest\*State.xml")[0].Name
         $f2 = "$dest\$sample.Parameters.xml"
@@ -437,7 +458,12 @@ function Invoke-IM3Convert {
                 $in = $_.Replace($using:IM3, $using:flatw)
                 $in = $in.Replace('.im3', '.Data.dat')
                 #
-                & $using:code $_ IM3 -x $using:injecttxt -i $in -o $using:dest # 2>&1>> $log
+                if ($env:OS -contains 'Windows_NT'){
+                    & $using:code $_ IM3 -x $using:injecttxt -i $in -o $using:dest # 2>&1>> $log
+                } else {
+                    $command = "mono $using:code $_ IM3 -x "+'"'+$using:injecttxt+'"'+" -i $in -o $using:dest"
+                    iex $command
+                }
             } -ThrottleLimit 5| Out-File -append $log
             #
             Start-Sleep 2
