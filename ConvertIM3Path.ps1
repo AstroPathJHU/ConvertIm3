@@ -34,6 +34,8 @@ function ConvertIm3Path{
            [Parameter()][switch]$dat)
     #
     test-convertim3params $PSBoundParameters
+    $root1 = $root1 -replace '/', '\'
+    $root2 = $root2 -replace '/', '\'
     $scan = search-scan $root1 $sample
     $IM3 = search-im3 $scan
     $flatw = search-flatw $root2 $sample -inject:$inject
