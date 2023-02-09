@@ -499,7 +499,7 @@ function Invoke-IM3Convert {
     }
     #
     if ($cnt -eq 5) {
-        Throw ('The following images failed to process:' + ($images -join ','))
+        Throw "ConvertIM3 failed to process images"
     }
 }
 #
