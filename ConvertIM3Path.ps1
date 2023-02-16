@@ -84,8 +84,11 @@ function ConvertIm3Path{
         if (!(test-path $dest)) {
             new-item $dest -itemtype directory | Out-Null
         }
-        #
-        Invoke-IM3Convert $images "$root1\$sample\im3\flatw" -inject -IM3 $IM3 -flatw $flatw
+        if ($env:OS -contains 'Windows_NT'){
+            Invoke-IM3Convert $images "$root1\$sample\im3\flatw" -inject -IM3 $IM3 -flatw $flatw
+        } else {
+            Invoke-IM3Convert $images "$root1/$sample/im3/flatw" -inject -IM3 $IM3 -flatw $flatw
+        }
         # 
     } 
     #
