@@ -34,8 +34,6 @@ function ConvertIm3Path{
            [Parameter()][switch]$dat)
     #
     test-convertim3params $PSBoundParameters
-    $root1 = $root1 -replace '/', '\'
-    $root2 = $root2 -replace '/', '\'
     $scan = search-scan $root1 $sample
     $IM3 = search-im3 $scan
     $flatw = search-flatw $root2 $sample -inject:$inject
@@ -44,7 +42,8 @@ function ConvertIm3Path{
     write-convertim3log -myparams $PSBoundParameters -IM3_fd $IM3 -Start 
     #
     if (!($PSBoundParameters.ContainsKey('images'))){
-        $images = (get-childitem "$IM3\*" '*.im3').FullName
+        $pattern = Join-Path $IM3 "*"
+        $images = (get-childitem $pattern '*.im3').FullName
     }
     #
     if ($images.Count -eq 0){
@@ -75,19 +74,17 @@ function ConvertIm3Path{
         # for inject check for '.dat' files then inject
         # back to im3 into the flatw folder
         #
-        $dats = get-childitem "$flatw\*" '*.dat'
+        $pattern = Join-Path $flatw "*"
+        $dats = get-childitem $pattern '*.dat'
         if (!($dats.Count -eq $images.Count)) { 
             Write-Verbose "$flatw\*.fw N File(s) and $IM3\*im3 N File(s) do not match"
         }
         #
-        $dest = "$root1\$sample\im3\flatw"
+        $dest = Join-Path $root1 "$sample\im3\flatw"
         if (!(test-path $dest)) {
             new-item $dest -itemtype directory | Out-Null
         }
-        if ($env:OS -contains 'Windows_NT'){
-            Invoke-IM3Convert $images "$root1\$sample\im3\flatw" -inject -IM3 $IM3 -flatw $flatw
-        } else {
-            Invoke-IM3Convert $images "$root1/$sample/im3/flatw" -inject -IM3 $IM3 -flatw $flatw
+        Invoke-IM3Convert $images $dest -inject -IM3 $IM3 -flatw $flatw
         }
         # 
     } 
@@ -138,7 +135,7 @@ function search-scan {
     #
     # find highest scan folder, exit if im3 directory not found
     #
-    $IM3 = "$root1\$sample\im3"
+    $IM3 = Join-Path $root1 "$sample\im3"
     if (!(test-path $IM3)) { 
        Throw "IM3 root path $IM3 not found"
         }
@@ -146,7 +143,7 @@ function search-scan {
     $sub = get-childitem $IM3 -Directory
         foreach ($sub1 in $sub) {
             if($sub1.Name -like "Scan*") { 
-                $scan = $IM3 + "\" + $sub1.Name
+                $scan = Join-Path $IM3 $sub1.Name
             }
         }
     #
@@ -160,7 +157,7 @@ function search-im3 {
     #
     # build full im3 path, exit if not found
     #
-    $IM3 = "$scan\MSI"
+    $IM3 = Join-Path $scan "MSI"
     if (!(test-path $IM3)) { 
         Throw "IM3 subpath $IM3 not found"
     }
@@ -178,7 +175,7 @@ function search-flatw {
     # build flatw path, and create folders if they do not exist for shred
     # exit if not found on inject
     #
-    $flatw = "$root2\$sample"
+    $flatw = Join-Path $root2 $sample
     if (!(test-path $flatw) -and !$inject) {
         new-item $flatw -itemtype directory | Out-Null
     } elseif (!(test-path $flatw) -and $inject){
@@ -241,15 +238,17 @@ function write-convertim3log {
             #
             $appendargs = ($appendargs -join ' ')
             Write-Verbose "shredPath $root1 $root2 $sample $appendargs `r"
-            If (test-path "$root2\$sample\doShred.log") {
-                 Remove-Item "$root2\$sample\doShred.log" -Force
+            $logpath = Join-Path $root2 "$sample\doShred.log"
+            If (test-path $logpath) {
+                 Remove-Item $logpath -Force
                  }
             #
         } else {
             #
             Write-Verbose "injectPath $root1 $root2 $sample `r"
-            If (test-path "$root1\$sample\im3\flatw\doInject.log") {
-                 Remove-Item "$root1\$sample\im3\flatw\doInject.log" -Force
+            $logpath = Join-Path $root1 "$sample\im3\flatw\doInject.log"
+            If (test-path $logpath) {
+                 Remove-Item $logpath -Force
                  }
             #
         }
@@ -257,13 +256,16 @@ function write-convertim3log {
         Write-Verbose (" "+(get-date).ToString('T')+"`r")
         #
         if (!$s) {
-            Write-Verbose "  src path $root2\$sample `r"
-            $stats = get-childitem "$root2\$sample\*" '*.dat' | Measure-Object Length -sum
+            $sampledir = Join-Path $root2 $sample
+            Write-Verbose "  src path $sampledir `r"
+            $pattern = Join-Path $sampledir "*"
+            $stats = get-childitem $pattern '*.dat' | Measure-Object Length -sum
             Write-Verbose ('     '+$stats.Count+' File(s) '+$stats.Sum+' byte(s)'+"`r")
         }
         #
         Write-Verbose "  im3 path $IM3_fd `r"
-        $stats = get-childitem "$IM3_fd\*" '*.im3' | Measure-Object Length -sum
+        $pattern = Join-Path $IM3_fd "*"
+        $stats = get-childitem $pattern '*.im3' | Measure-Object Length -sum
         Write-Verbose ('     '+$stats.Count+' File(s) '+$stats.Sum+' byte(s)'+"`r")
         #
     }
@@ -272,25 +274,26 @@ function write-convertim3log {
     #    
     if ($Finish){
         #
-        if ($s) { $dest = "$root2\$sample"
-        } else { $dest = "$root1\$sample\im3\flatw" }
+        if ($s) { $dest = Join-Path $root2 $sample
+        } else { $dest = Join-Path $root1 "$sample\im3\flatw" }
         #
         Write-Verbose "  dst path $dest `r"
         #
+        $pattern = Join-Path $dest "*"
         if ($s) {
             #
             if($a -or $d) {
-                $stats = get-childitem "$dest\*" '*.dat' | Measure-Object Length -sum
+                $stats = get-childitem $pattern '*.dat' | Measure-Object Length -sum
                 Write-Verbose ('     '+$stats.Count+' File(s) '+$stats.Sum+' byte(s)'+"`r")
             }
             #
             if ($a -or $xml -or $xmlFull){
-                $stats = get-childitem "$dest\*" '*.xml' | Measure-Object Length -sum
+                $stats = get-childitem $pattern '*.xml' | Measure-Object Length -sum
                 Write-Verbose ('     '+$stats.Count+' File(s) '+$stats.Sum+' byte(s)'+"`r")
             }
             #
         } else {
-            $stats = get-childitem "$dest\*" '*.im3' | Measure-Object Length -sum
+            $stats = get-childitem $pattern '*.im3' | Measure-Object Length -sum
             Write-Verbose ('     '+$stats.Count+' File(s) '+$stats.Sum+' byte(s)'+"`r")
             #
         }
@@ -332,12 +335,7 @@ function Invoke-IM3Convert {
     #
     # Set up variables
     #
-    if ($env:OS -contains 'Windows_NT'){
-        $code = "$PSScriptRoot\ConvertIm3.exe"
-    } else {
-        $code = "$PSScriptRoot/ConvertIM3.exe"
-        $dest = $dest -replace '[\\/]', '/'
-    }
+    $code = Join-Path $PSScriptRoot "ConvertIm3.exe"
     $dat = ".//D[@name='Data']/text()"
     $exp = '"' + ".//G[@name='SpectralBasisInfo']//D[@name='Exposure'] " + '"' #| " + 
             # "(.//G[@name='Protocol']//G[@name='DarkCurrentSettings'])" + '"'
@@ -351,7 +349,7 @@ function Invoke-IM3Convert {
     #
     if ($BIN) {
         #
-        $log = $dest + '\doShred.log'
+        $log = Join-Path $dest "doShred.log"
         $cnt = 0
         #
         while($images -and ($cnt -lt 5)){
@@ -379,7 +377,7 @@ function Invoke-IM3Convert {
     #
     if ($XML) {
         #
-        $log = $dest + '\doShred.log'
+        $log = Join-Path $dest "doShred.log"
         $cnt = 0
         #
         while($images -and ($cnt -lt 5)){
@@ -409,18 +407,20 @@ function Invoke-IM3Convert {
     if ($FULL){
         #
         $im1 = $images[0]
+        $shredlog = Join-Path $dest "doShred.log"
         if ($env:OS -contains 'Windows_NT'){
-            & $code $im1 XML -t 64 -o $dest 2>&1>> "$dest\doShred.log"
+            & $code $im1 XML -t 64 -o $dest 2>&1>> $shredlog
         } else {
             $command = "mono $code $im1 XML -t 64 -o $dest"
-            iex $command 2>&1>> "$dest/doShred.log"
+            iex $command 2>&1>> $shredlog
         }
         #
-        $f = (get-childitem "$dest\*].xml")[0].Name
-        $f2 = "$dest\$sample.Full.xml"
+        $pattern = Join-Path $dest "*].xml"
+        $f = (get-childitem $pattern)[0].Name
+        $f2 = Join-Path $dest "$sample.Full.xml"
         if (test-path $f2) {Remove-Item $f2 -Force}
-        Rename-Item "$dest\*].xml" $f2 -Force
-        "$f Renamed to $sample.Full.xml" | Out-File "$dest\doShred.log" -Append
+        Rename-Item $pattern $f2 -Force
+        "$f Renamed to $sample.Full.xml" | Out-File $shredlog -Append
         #
     }
     #
@@ -430,18 +430,20 @@ function Invoke-IM3Convert {
     if ($PARMS) {
         #
         $im1 = $images[0]
+        $shredlog = Join-Path $dest "doShred.log"
         if ($env:OS -contains 'Windows_NT'){
-            & $code $im1 XML -x $glb_prms -o $dest 2>&1>> "$dest\doShred.log"
+            & $code $im1 XML -x $glb_prms -o $dest 2>&1>> $shredlog
         } else {
             $command = "mono $code $im1 XML -x "+'"'+$glb_prms+'"'+" -o $dest"
-            iex $command 2>&1>> "$dest/doShred.log"
+            iex $command 2>&1>> $shredlog
         }
         # 
-        $f = (get-childitem "$dest\*State.xml")[0].Name
-        $f2 = "$dest\$sample.Parameters.xml"
+        $pattern = Join-Path $dest "*State.xml"
+        $f = (get-childitem $pattern)[0].Name
+        $f2 = Join-Path $dest "$sample.Parameters.xml"
         if (test-path $f2) {Remove-Item $f2 -Force}
-        Rename-Item "$dest\*State.xml" $f2 -Force
-        "$f Renamed to $sample.Parameters.xml" | Out-File "$dest\doShred.log" -Append
+        Rename-Item $pattern $f2 -Force
+        "$f Renamed to $sample.Parameters.xml" | Out-File $shredlog -Append
         #
     }
     #
@@ -449,7 +451,7 @@ function Invoke-IM3Convert {
     # 
     if ($inject) {
         #
-        $log = $dest + '\doInject.log'
+        $log = Join-Path $dest "doInject.log"
         $cnt = 0
         #
         $savedimagenames = $images
@@ -483,7 +485,8 @@ function Invoke-IM3Convert {
             #    
             $f2 = $_.replace($IM3, $dest)
             $f = $f2.replace('.im3', '.injected.im3')
-            $f2log = $f2.replace("$dest\", '') 
+            $pattern = Join-Path $dest ""
+            $f2log = $f2.replace($pattern, '') 
             if (test-path -LiteralPath $f2) {Remove-Item -LiteralPath $f2 -Force}
             Rename-Item -LiteralPath $f $f2 -Force
             "$f Renamed to $f2log" | Out-File $log -Append
@@ -494,7 +497,8 @@ function Invoke-IM3Convert {
             $f = $f2.replace('.im3', '.Data.dat')
             $f2 = $f2.replace('.im3', '.fw')
             #
-            $f2log = $f2.replace("$flatw\", '') 
+            $pattern = Join-Path $flatw ""
+            $f2log = $f2.replace($pattern, '') 
             if (test-path -LiteralPath $f2) {Remove-Item -LiteralPath $f2 -Force}
             Rename-Item -LiteralPath $f $f2 -Force
             "$f Renamed to $f2log" | Out-File $log -Append
@@ -516,7 +520,8 @@ function SEARCH-FAILED {
     #
     # find images that did not extract at all
     #
-    $output = Get-ChildItem ($dest + '\*') ('*' + $filespec)
+    $pattern = Join-Path $dest "*"
+    $output = Get-ChildItem ($pattern) ('*' + $filespec)
     if (!$output){
         return $images
     }
@@ -539,7 +544,7 @@ function SEARCH-FAILED {
     #
     if ($comparison.InputObject){
         ($comparison.InputObject) | foreach-Object{
-            $outimages += $imagepath + '\' + ($_  -replace $filespec, '.im3')
+            $outimages += Join-Path $imagepath ($_  -replace $filespec, '.im3')
         }
     }
     #
