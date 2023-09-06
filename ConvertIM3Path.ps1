@@ -85,7 +85,6 @@ function ConvertIm3Path{
             new-item $dest -itemtype directory | Out-Null
         }
         Invoke-IM3Convert $images $dest -inject -IM3 $IM3 -flatw $flatw
-        }
         # 
     } 
     #
