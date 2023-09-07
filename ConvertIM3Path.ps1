@@ -334,7 +334,7 @@ function Invoke-IM3Convert {
     #
     # Set up variables
     #
-    $code = Join-Path $PSScriptRoot "ConvertIm3.exe"
+    $code = Join-Path $PSScriptRoot "ConvertIM3.exe"
     $dat = ".//D[@name='Data']/text()"
     $exp = '"' + ".//G[@name='SpectralBasisInfo']//D[@name='Exposure'] " + '"' #| " + 
             # "(.//G[@name='Protocol']//G[@name='DarkCurrentSettings'])" + '"'
