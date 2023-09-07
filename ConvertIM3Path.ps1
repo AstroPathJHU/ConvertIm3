@@ -387,7 +387,7 @@ function Invoke-IM3Convert {
                 if ($env:OS -contains 'Windows_NT'){
                     & $using:code $_ XML -x $using:exp -o $using:dest # 2>&1>> $log
                 } else {
-                    $command = "mono $using:code $_ XML -x "+'"'+$using:exp+'"'+" -o $using:dest"
+                    $command = "mono $using:code $_ XML -x "+$using:exp+" -o $using:dest"
                     iex $command
                 }
             } -ThrottleLimit 5| Out-File -append $log
@@ -433,7 +433,7 @@ function Invoke-IM3Convert {
         if ($env:OS -contains 'Windows_NT'){
             & $code $im1 XML -x $glb_prms -o $dest 2>&1>> $shredlog
         } else {
-            $command = "mono $code $im1 XML -x "+'"'+$glb_prms+'"'+" -o $dest"
+            $command = "mono $code $im1 XML -x "+$glb_prms+" -o $dest"
             iex $command 2>&1>> $shredlog
         }
         # 
