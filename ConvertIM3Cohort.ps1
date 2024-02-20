@@ -5,7 +5,7 @@ formats
 
 
 Function ConvertIM3Cohort {
-    param ( $root, $output_dir )
+    param ( $root, $output_dir, $interactive )
     $sample_all = Get-ChildItem -Path $root -Directory
     
     #
@@ -16,7 +16,7 @@ Function ConvertIM3Cohort {
         IF (!$ii -or $sub.Name -like "Control*") {
             Continue
         }
-        ConvertIM3Path $root $output_dir $sub.Name -shred -all
+        ConvertIM3Path $root $output_dir $sub.Name $interactive -shred -all
     }
     #
 }

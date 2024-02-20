@@ -25,6 +25,7 @@ function ConvertIm3Path{
     param ([Parameter(Position=0)][string] $root1 = '',
            [Parameter(Position=1)][string] $root2 = '', 
            [Parameter(Position=2)][string] $sample = '',
+           [Parameter(Position=3)][switch] $interactive = $false,
            [Parameter()][array] $images,
            [Parameter()][switch]$inject,
            [Parameter()][switch]$shred, 
@@ -356,6 +357,9 @@ function Invoke-IM3Convert {
             Write-Debug ('       attempt:' + $cnt)
             #
             $images | foreach-object -Parallel {
+                if ($this.interactive){
+                    Write-Output $_
+                }                     
                 if ($env:OS -contains 'Windows_NT'){
                     & $using:code $_ DAT -x $using:dat -o $using:dest # 2>&1>> $log
                 } else {
@@ -384,6 +388,9 @@ function Invoke-IM3Convert {
             Write-Debug ('       attempt:' + $cnt)
             #
             $images | foreach-object -Parallel {
+                if ($this.interactive){
+                    Write-Output $_
+                }
                 if ($env:OS -contains 'Windows_NT'){
                     & $using:code $_ XML -x $using:exp -o $using:dest # 2>&1>> $log
                 } else {
@@ -407,6 +414,9 @@ function Invoke-IM3Convert {
         #
         $im1 = $images[0]
         $shredlog = Join-Path $dest "doShred.log"
+        if ($this.interactive){
+            Write-Output $im1
+        }     
         if ($env:OS -contains 'Windows_NT'){
             & $code $im1 XML -t 64 -o $dest 2>&1>> $shredlog
         } else {
@@ -430,6 +440,9 @@ function Invoke-IM3Convert {
         #
         $im1 = $images[0]
         $shredlog = Join-Path $dest "doShred.log"
+        if ($this.interactive){
+            Write-Output $im1
+        }        
         if ($env:OS -contains 'Windows_NT'){
             & $code $im1 XML -x $glb_prms -o $dest 2>&1>> $shredlog
         } else {
@@ -460,6 +473,9 @@ function Invoke-IM3Convert {
             Write-Debug ('       attempt:' + $cnt)
             #
             $images | foreach-object -Parallel {
+                if ($this.interactive){
+                    Write-Output $_
+                }
                 #
                 $in = $_.Replace($using:IM3, $using:flatw)
                 $in = $in.Replace('.im3', '.Data.dat')
