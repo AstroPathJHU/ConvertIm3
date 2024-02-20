@@ -358,7 +358,7 @@ function Invoke-IM3Convert {
             #
             $images | foreach-object -Parallel {
                 if ($this.interactive){
-                    Write-Output $_
+                    write-host $_
                 }                     
                 if ($env:OS -contains 'Windows_NT'){
                     & $using:code $_ DAT -x $using:dat -o $using:dest # 2>&1>> $log
@@ -389,7 +389,7 @@ function Invoke-IM3Convert {
             #
             $images | foreach-object -Parallel {
                 if ($this.interactive){
-                    Write-Output $_
+                    write-host $_
                 }
                 if ($env:OS -contains 'Windows_NT'){
                     & $using:code $_ XML -x $using:exp -o $using:dest # 2>&1>> $log
@@ -415,7 +415,7 @@ function Invoke-IM3Convert {
         $im1 = $images[0]
         $shredlog = Join-Path $dest "doShred.log"
         if ($this.interactive){
-            Write-Output $im1
+            write-host $im1
         }     
         if ($env:OS -contains 'Windows_NT'){
             & $code $im1 XML -t 64 -o $dest 2>&1>> $shredlog
@@ -441,7 +441,7 @@ function Invoke-IM3Convert {
         $im1 = $images[0]
         $shredlog = Join-Path $dest "doShred.log"
         if ($this.interactive){
-            Write-Output $im1
+            write-host $im1
         }        
         if ($env:OS -contains 'Windows_NT'){
             & $code $im1 XML -x $glb_prms -o $dest 2>&1>> $shredlog
@@ -474,7 +474,7 @@ function Invoke-IM3Convert {
             #
             $images | foreach-object -Parallel {
                 if ($this.interactive){
-                    Write-Output $_
+                    write-host $_
                 }
                 #
                 $in = $_.Replace($using:IM3, $using:flatw)
