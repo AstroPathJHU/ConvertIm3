@@ -38,7 +38,6 @@ function ConvertIm3Path{
     $scan = search-scan $root1 $sample
     $IM3 = search-im3 $scan
     $flatw = search-flatw $root2 $sample -inject:$inject
-
     #
     write-convertim3log -myparams $PSBoundParameters -IM3_fd $IM3 -Start 
     #
@@ -59,15 +58,17 @@ function ConvertIm3Path{
         # extract additional sample information like shape, etc
         # optional inputs are applied
         #
-        if ($all -or $dat) { Invoke-IM3Convert -images $images -dest $flatw -BIN }
+        if ($all -or $dat) { 
+            Invoke-IM3Convert -images $images -dest $flatw $interactive -BIN 
+            }
         #
         if ($all -or $xml) {
-            Invoke-IM3Convert $images $flatw -XML
+            Invoke-IM3Convert $images $flatw $interactive -XML
         }
         #
         if ($all -or $xml -or $xmlfull) {
-            Invoke-IM3Convert $images $flatw -FULL
-            Invoke-IM3Convert $images $flatw -PARMS
+            Invoke-IM3Convert $images $flatw $interactive -FULL
+            Invoke-IM3Convert $images $flatw $interactive -PARMS
         }
         #
     } elseif ($inject) {
@@ -85,7 +86,7 @@ function ConvertIm3Path{
         if (!(test-path $dest)) {
             new-item $dest -itemtype directory | Out-Null
         }
-        Invoke-IM3Convert $images $dest -inject -IM3 $IM3 -flatw $flatw
+        Invoke-IM3Convert $images $dest $interactive -inject -IM3 $IM3 -flatw $flatw
         # 
     } 
     #
@@ -325,6 +326,7 @@ function Invoke-IM3Convert {
     # ----------------------------------------------------- #>
     param([parameter(Position=0)][array]$images,
           [parameter(Position=1)][String]$dest,
+          [parameter(Position=2)][Switch]$interactive,
           [parameter(Mandatory=$false)][Switch]$BIN,
           [parameter(Mandatory=$false)][Switch]$XML,
           [parameter(Mandatory=$false)][Switch]$FULL,
@@ -337,12 +339,12 @@ function Invoke-IM3Convert {
     #
     $code = Join-Path $PSScriptRoot "ConvertIM3.exe"
     $dat = ".//D[@name='Data']/text()"
-    $exp = '"' + ".//G[@name='SpectralBasisInfo']//D[@name='Exposure'] " + '"' #| " + 
+    $exp = ".//G[@name='SpectralBasisInfo']//D[@name='Exposure']" #| " + 
             # "(.//G[@name='Protocol']//G[@name='DarkCurrentSettings'])" + '"'
-    $glb_prms =  '"' + "//D[@name='Shape']  | " +
+    $glb_prms =  "//D[@name='Shape']  | " +
                  "//D[@name='SampleLocation'] | " +
                  "//D[@name='MillimetersPerPixel'] | " +
-                 "(.//G[@name='Protocol']//G[@name='CameraState'])[1]" + '"'
+                 "(.//G[@name='Protocol']//G[@name='CameraState'])[1]"
     $injecttxt = ".//D[@name='Data']/text()"
     #
     # extracts the binary bit map
@@ -357,7 +359,7 @@ function Invoke-IM3Convert {
             Write-Debug ('       attempt:' + $cnt)
             #
             $images | foreach-object -Parallel {
-                if ($this.interactive){
+                if ($using:interactive){
                     write-host $_
                 }                     
                 if ($env:OS -contains 'Windows_NT'){
@@ -388,9 +390,9 @@ function Invoke-IM3Convert {
             Write-Debug ('       attempt:' + $cnt)
             #
             $images | foreach-object -Parallel {
-                if ($this.interactive){
-                    write-host $_
-                }
+                if ($using:interactive){
+                    Write-Host $_
+                }             
                 if ($env:OS -contains 'Windows_NT'){
                     & $using:code $_ XML -x $using:exp -o $using:dest # 2>&1>> $log
                 } else {
@@ -414,7 +416,7 @@ function Invoke-IM3Convert {
         #
         $im1 = $images[0]
         $shredlog = Join-Path $dest "doShred.log"
-        if ($this.interactive){
+        if ($interactive){
             write-host $im1
         }     
         if ($env:OS -contains 'Windows_NT'){
@@ -440,7 +442,7 @@ function Invoke-IM3Convert {
         #
         $im1 = $images[0]
         $shredlog = Join-Path $dest "doShred.log"
-        if ($this.interactive){
+        if ($interactive){
             write-host $im1
         }        
         if ($env:OS -contains 'Windows_NT'){
@@ -473,7 +475,7 @@ function Invoke-IM3Convert {
             Write-Debug ('       attempt:' + $cnt)
             #
             $images | foreach-object -Parallel {
-                if ($this.interactive){
+                if ($using:interactive){
                     write-host $_
                 }
                 #
