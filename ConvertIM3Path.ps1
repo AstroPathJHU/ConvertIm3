@@ -448,7 +448,7 @@ function Invoke-IM3Convert {
         if ($env:OS -contains 'Windows_NT'){
             & $code $im1 XML -x $glb_prms -o $dest 2>&1>> $shredlog
         } else {
-            $command = "mono $code $im1 XML -x "+'"'+$glb_prms+'"'+" -o $dest"
+            $command = "mono $code $im1 XML -x "+$glb_prms+" -o $dest"
             iex $command 2>&1>> $shredlog
         }
         # 
