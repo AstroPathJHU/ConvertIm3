@@ -545,7 +545,7 @@ function SEARCH-FAILED {
     #
     write-debug '       search failed'
     #
-    $outputnames = $output.Name
+    $outputnames = [array]($output.Name)
     $compareimagenames = (Split-Path $images -Leaf) -replace '.im3', $filespec
     $imagepath = Split-Path $images[0]
     #
