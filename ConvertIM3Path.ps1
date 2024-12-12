@@ -437,8 +437,11 @@ function Invoke-IM3Convert {
         #
         $pattern = Join-Path $dest "*].xml"
         Write-host '    *pattern:' $pattern
+        Write-host '    *gci:' (get-childitem $pattern)
         $f = (get-childitem $pattern)[0].Name
+        write-host '    *f:' $f
         $f2 = Join-Path $dest "$sample.Full.xml"
+        write-host '    *f2:' $f2
         if (test-path $f2) {Remove-Item $f2 -Force}
         Rename-Item $pattern $f2 -Force
         "$f Renamed to $sample.Full.xml" | Out-File $shredlog -Append
