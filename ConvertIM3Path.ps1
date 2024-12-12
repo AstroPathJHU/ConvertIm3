@@ -68,6 +68,7 @@ function ConvertIm3Path{
         #
         if ($all -or $xml -or $xmlfull) {
             Write-Host '    *Images:' $images
+            write-host '    *images type:' $images.gettype()
             Write-Host '    *flatw:' $flatw
             Write-Host '    *interactive:' $interactive
             Invoke-IM3Convert $images $flatw $interactive -FULL
@@ -417,8 +418,12 @@ function Invoke-IM3Convert {
     #
     if ($FULL){
         #
+        Write-Host '    *images:' $images
         $im1 = $images[0]
+        Write-Host '    *im1:' $im1
         $shredlog = Join-Path $dest "doShred.log"
+        Write-Host '    *dest:' $dest
+        write-host '    *shredlog:' $shredlog
         if ($interactive){
             write-host $im1
         }     
@@ -426,10 +431,12 @@ function Invoke-IM3Convert {
             & $code $im1 XML -t 64 -o $dest 2>&1>> $shredlog
         } else {
             $command = "mono $code $im1 XML -t 64 -o $dest"
+            Write-Host '    *command:' $command
             iex $command 2>&1>> $shredlog
         }
         #
         $pattern = Join-Path $dest "*].xml"
+        Write-host '    *pattern:' $pattern
         $f = (get-childitem $pattern)[0].Name
         $f2 = Join-Path $dest "$sample.Full.xml"
         if (test-path $f2) {Remove-Item $f2 -Force}
