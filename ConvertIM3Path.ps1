@@ -67,6 +67,9 @@ function ConvertIm3Path{
         }
         #
         if ($all -or $xml -or $xmlfull) {
+            Write-Host '    *Images:' $images
+            Write-Host '    *flatw:' $flatw
+            Write-Host '    *interactive:' $interactive
             Invoke-IM3Convert $images $flatw $interactive -FULL
             Invoke-IM3Convert $images $flatw $interactive -PARMS
         }
