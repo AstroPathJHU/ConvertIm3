@@ -438,6 +438,8 @@ function Invoke-IM3Convert {
         $pattern = Join-Path $dest "*].xml"
         Write-host '    *pattern:' $pattern
         Write-host '    *gci:' (get-childitem $pattern)
+        write-host '    *gci dest:' (get-childitem $dest)
+        write-host '    *shredlog:' (get-content $shredlog)
         $f = (get-childitem $pattern)[0].Name
         write-host '    *f:' $f
         $f2 = Join-Path $dest "$sample.Full.xml"
