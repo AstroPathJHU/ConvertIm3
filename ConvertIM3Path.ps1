@@ -67,10 +67,6 @@ function ConvertIm3Path{
         }
         #
         if ($all -or $xml -or $xmlfull) {
-            Write-Host '    *Images:' $images
-            write-host '    *images type:' $images.gettype()
-            Write-Host '    *flatw:' $flatw
-            Write-Host '    *interactive:' $interactive
             Invoke-IM3Convert $images $flatw $interactive -FULL
             Invoke-IM3Convert $images $flatw $interactive -PARMS
         }
@@ -427,19 +423,12 @@ function Invoke-IM3Convert {
             & $code $im1 XML -t 64 -o $dest 2>&1>> $shredlog
         } else {
             $command = "mono $code $im1 XML -t 64 -o $dest"
-            Write-Host '    *command:' $command
             iex $command 2>&1>> $shredlog
         }
         #
         $pattern = Join-Path $dest "*].xml"
-        Write-host '    *pattern:' $pattern
-        Write-host '    *gci:' (get-childitem $pattern)
-        write-host '    *gci dest:' (get-childitem $dest)
-        write-host '    *shredlog:' (get-content $shredlog)
         $f = (get-childitem $pattern)[0].Name
-        write-host '    *f:' $f
         $f2 = Join-Path $dest "$sample.Full.xml"
-        write-host '    *f2:' $f2
         if (test-path $f2) {Remove-Item $f2 -Force}
         Rename-Item $pattern $f2 -Force
         "$f Renamed to $sample.Full.xml" | Out-File $shredlog -Append
