@@ -372,7 +372,16 @@ function Invoke-IM3Convert {
             #
             Start-Sleep 2
             #
-            $images = SEARCH-FAILED $images $dest '.Data.dat' 
+            $images = SEARCH-FAILED $images $dest '.Data.dat'
+            if ($images) {
+                $attemptnum = $cnt + 1
+                $numfailed = $images.length
+                Write-Verbose "    Attempt $attemptnum - Error extracting $numfailed BIN images"
+                Write-Verbose "    Failed Images:"
+                foreach ($image in $images) {
+                    Write-Verbose "    $image"
+                }
+            }
             $cnt += 1
         }
         #
@@ -403,7 +412,16 @@ function Invoke-IM3Convert {
             #
             Start-Sleep 2
             #
-            $images = SEARCH-FAILED $images $dest '.SpectralBasisInfo.Exposure.xml' 
+            $images = SEARCH-FAILED $images $dest '.SpectralBasisInfo.Exposure.xml'
+            if ($images) {
+                $attemptnum = $cnt + 1
+                $numfailed = $images.length
+                Write-Verbose "    Attempt $attemptnum - Error extracting $numfailed XML images"
+                Write-Verbose "    Failed Images:"
+                foreach ($image in $images) {
+                    Write-Verbose "    $image"
+                }
+            }
             $cnt += 1
         }
         #
@@ -492,7 +510,16 @@ function Invoke-IM3Convert {
             #
             Start-Sleep 2
             #
-            $images = SEARCH-FAILED $images $dest '.injected.im3' 
+            $images = SEARCH-FAILED $images $dest '.injected.im3'
+            if ($images) {
+                $attemptnum = $cnt + 1
+                $numfailed = $images.length
+                Write-Verbose "    Attempt $attemptnum - Error injecting $numfailed images"
+                Write-Verbose "    Failed Images:"
+                foreach ($image in $images) {
+                    Write-Verbose "    $image"
+                }
+            }
             $cnt += 1
         }
         #
@@ -525,7 +552,7 @@ function Invoke-IM3Convert {
     }
     #
     if ($cnt -eq 5) {
-        Throw "ConvertIM3 failed to process images"
+        Throw "ConvertIM3 failed to process images after 5 attempts"
     }
 }
 #
