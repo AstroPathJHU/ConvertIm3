@@ -6,19 +6,27 @@ is part of the flat fielding work flow for the JHU astropath pipeline.
 
 Created by: Alex Szalay, Benjamin Green - JHU - 04/14/2020
 
-Usage: 
+Usage:
  To "shred" a directory of im3s in the CS format use:
-    Im3ConvertPath -dataroot -fwpath -sample -s [-a -d -xml]
-    Optional arguements:
-	-d: only extract the binary bitmap for each image into the output directory
+    ConvertIm3Path <dataroot> <fwroot> <sample> -shred [-all -dat -xml -xmlfull] [-interactive] [-images <paths>]
+    Reads the im3s from <dataroot>\<sample>\im3\Scan<highest number>\MSI and writes to <fwroot>\<sample>
+    Optional arguments (defaults to -all when none are supplied; otherwise pass at least one of -all, -dat, -xml, -xmlfull):
+	-all: do everything below (-dat and -xml)
+	-dat: only extract the binary bitmap for each image into the output directory
 	-xml: extract the xml information only for each image, xml information includes:
 		1) one <sample>.Parameters.xml: sample location, shape, and scale
 		2) one <sample>.Full.xml: the full xml of an im3 without the bitmap
-		3) an .SpectralBasisInfo.Exposure.xml for each image containing the 
+		3) an .SpectralBasisInfo.Exposure.xml for each image containing the
 			exposure times of the image
- To "inject" a directory of .fw binary blobs for each image back into the directory of im3s use:
-    Im3ConvertPath -datapath -fwpath -sample -i
-    Exports the new '.im3s' into the flatw directory
+	-xmlfull: only the <sample>.Parameters.xml and <sample>.Full.xml from (-xml)
+	-interactive: write each image name to the host as it is processed
+	-images: only process these im3 files (full paths) instead of the whole MSI folder
+ To "inject" a directory of .Data.dat binary blobs for each image back into the directory of im3s use:
+    ConvertIm3Path <dataroot> <fwroot> <sample> -inject
+    Reads the .Data.dat files from <fwroot>\<sample>
+    Exports the new '.im3s' into <dataroot>\<sample>\im3\flatw (the injected files are 
+    renamed from <name>.injected.im3 to <name>.im3)
+    Each .Data.dat in <fwroot>\<sample> is renamed to <name>.fw once it has been injected
 #--------------------------------------------------------------------------------------------#>
 function ConvertIm3Path{ 
     #
@@ -35,6 +43,7 @@ function ConvertIm3Path{
            [Parameter()][switch]$dat)
     #
     test-convertim3params $PSBoundParameters
+    test-convertim3exe
     $scan = search-scan $root1 $sample
     $IM3 = search-im3 $scan
     $flatw = search-flatw $root2 $sample -inject:$inject
@@ -79,7 +88,8 @@ function ConvertIm3Path{
         $pattern = Join-Path $flatw "*"
         $dats = get-childitem $pattern '*.dat'
         if (!($dats.Count -eq $images.Count)) { 
-            Write-Verbose "$flatw\*.fw N File(s) and $IM3\*im3 N File(s) do not match"
+            Write-Verbose ("WARNING: " + $dats.Count + " .dat file(s) in $flatw but " +
+                $images.Count + " .im3 file(s) to inject from $IM3")
         }
         #
         $dest = Join-Path $root1 "$sample\im3\flatw"
@@ -107,6 +117,12 @@ function test-convertim3params{
         Throw "Usage: ConvertIm3Path dataroot dest sample -inject -shred:[-all -dat -xml -xmlfull]"
     }
     #
+    # shred and inject are exclusive, shred would otherwise run and inject be silently ignored
+    #
+    if ($myparams.inject -and $myparams.shred) {
+        Throw "-shred and -inject cannot be used together, run ConvertIm3Path once for each"
+    }
+    #
     # set default to all for shred if no other value given
     #
     if ($myparams.shred -and !$myparams.all -and !$myparams.dat -and !$myparams.xml -and !$myparams.xmlfull) { $myparams.all = $true }
@@ -129,6 +145,22 @@ function test-convertim3params{
     #
 }
 #
+function test-convertim3exe {
+    #
+    # check that ConvertIM3.exe, and mono on non-windows, are available before
+    # any folders are created or any images are processed
+    #
+    $code = Join-Path $PSScriptRoot "ConvertIM3.exe"
+    if (!(test-path -LiteralPath $code)) {
+        Throw "ConvertIM3.exe not found at $code; it must be in the same folder as ConvertIM3Path.ps1"
+    }
+    #
+    if (!($env:OS -eq 'Windows_NT') -and !(get-command mono -ErrorAction SilentlyContinue)) {
+        Throw "'mono' is required to run ConvertIM3.exe on this platform but was not found on the PATH"
+    }
+    #
+}
+#
 function search-scan {
     #
     param ([Parameter(Position=0)][string] $root1 = '',
@@ -137,16 +169,40 @@ function search-scan {
     # find highest scan folder, exit if im3 directory not found
     #
     $IM3 = Join-Path $root1 "$sample\im3"
-    if (!(test-path $IM3)) { 
-       Throw "IM3 root path $IM3 not found"
+    if (!(test-path $IM3)) {
+        #
+        # say which level is missing: dataroot, sample folder, or im3 folder
+        #
+        $samplepath = Join-Path $root1 $sample
+        if (!(test-path -LiteralPath $root1)) {
+            Throw "IM3 root path $IM3 not found: data root '$root1' does not exist"
+        } elseif (!(test-path -LiteralPath $samplepath)) {
+            Throw ("IM3 root path $IM3 not found: sample folder '$samplepath' does not exist")
         }
+        Throw ("IM3 root path $IM3 not found: sample folder '$samplepath' has no 'im3' folder")
+    }
     #
-    $sub = get-childitem $IM3 -Directory
-        foreach ($sub1 in $sub) {
-            if($sub1.Name -like "Scan*") { 
-                $scan = Join-Path $IM3 $sub1.Name
-            }
+    # only folders named exactly Scan<number> are valid.
+    #
+    $sub = get-childitem -LiteralPath $IM3 -Directory |
+        where-object {$_.Name -like "Scan*"}
+    foreach ($sub1 in $sub) {
+        if ($sub1.Name -notmatch '^Scan\d+$') {
+            Write-Verbose ("WARNING: ignoring folder '" + $sub1.Name + 
+                "' in $IM3; scan folders must be named Scan<number> (e.g. Scan1)")
         }
+    }
+    #
+    $valid = $sub | where-object {$_.Name -match '^Scan\d+$'}
+    if (!$valid) {
+        Throw ("No valid scan folder (Scan<number>) found in $IM3. " + 
+            "Folders found: " + ((get-childitem -LiteralPath $IM3 -Directory).Name -join ', '))
+    }
+    #
+    $scanname = ($valid |
+        sort-object {[int]$_.Name.substring(4)} |
+        select-object -last 1).Name
+    $scan = Join-Path $IM3 $scanname
     #
     return $scan
     #
@@ -159,8 +215,8 @@ function search-im3 {
     # build full im3 path, exit if not found
     #
     $IM3 = Join-Path $scan "MSI"
-    if (!(test-path $IM3)) { 
-        Throw "IM3 subpath $IM3 not found"
+    if (!(test-path $IM3)) {
+        Throw "IM3 subpath $IM3 not found: the highest scan folder '$scan' has no 'MSI' folder"
     }
     #
     return $IM3
@@ -178,9 +234,10 @@ function search-flatw {
     #
     $flatw = Join-Path $root2 $sample
     if (!(test-path $flatw) -and !$inject) {
+        Write-Verbose "output folder $flatw not found, creating it"
         new-item $flatw -itemtype directory | Out-Null
     } elseif (!(test-path $flatw) -and $inject){
-        Throw "flatw path $flatw not found"; return
+        Throw "flatw path $flatw not found"
     }
     #
     return $flatw
@@ -305,15 +362,111 @@ function write-convertim3log {
     #
 }
 #
-function search-imagenames{
+function Get-IM3Exception {
     #
-    param([parameter(Position=0)][String[]]$IM3,
-          [parameter(Position=1)][String[]]$images
-        )
+    # ConvertIM3 reports a failure by printing 'Exception: <message>' to the output
+    # and exiting 0, so the exit code cannot be used to tell that it failed
     #
-
+    param([parameter(Position=0)][array]$output)
     #
-    return $images
+    $line = $output | Where-Object {$_ -like 'Exception: *'} | Select-Object -First 1
+    if ($line) { return "ConvertIM3 error: " + $line.Substring(11) }
+    #
+}
+#
+function Write-IM3Results {
+    #
+    # write the ConvertIM3 output to the log, and for each image that failed use
+    # the exception ConvertIM3 reported, if any, as the reason
+    #
+    param([parameter(Position=0)][array]$results,
+          [parameter(Position=1)][String]$log,
+          [parameter(Position=2)][array]$failed,
+          [parameter(Position=3)][hashtable]$reasons)
+    #
+    $results | foreach-object { $_.Output } | Out-File -append $log
+    $failed = @($failed | where-object {$_})
+    foreach ($result in $results) {
+        $exception = Get-IM3Exception $result.Output
+        if ($exception) {
+            $reasons[$result.Image] = $exception
+            if ($failed -notcontains $result.Image) { $failed += $result.Image }
+        }
+    }
+    return $failed
+    #
+}
+#
+function Write-IM3AttemptFailure {
+    #
+    # verbose message for a failed attempt, with the reason for each failed image
+    #
+    param([parameter(Position=0)][int]$attempt,
+          [parameter(Position=1)][String]$summary,
+          [parameter(Position=2)][array]$images,
+          [parameter(Position=3)][hashtable]$reasons)
+    #
+    Write-Verbose "    Attempt $attempt - Error $summary"
+    foreach ($image in $images) {
+        Write-Verbose "    $image - $($reasons[$image])"
+    }
+    #
+}
+#
+function Stop-IM3Convert {
+    #
+    # throw for images that still failed after the last attempt, also written to the log
+    #
+    param([parameter(Position=0)][String]$step,
+          [parameter(Position=1)][array]$failed,
+          [parameter(Position=2)][hashtable]$reasons,
+          [parameter(Position=3)][String]$log)
+    #
+    # one line per distinct reason, with an example image
+    #
+    $groups = @($failed | group-object {$reasons[$_]})
+    $lines = $groups | select-object -first 10 | foreach-object {
+        $line = "    " + [IO.Path]::GetFileName($_.Group[0]) + " - " + $_.Name
+        if ($_.Count -gt 1) { $line += " (and " + ($_.Count - 1) + " more)" }
+        $line
+    }
+    if ($groups.Count -gt 10) { $lines += "    ... and " + ($groups.Count - 10) + " more reasons" }
+    $msg = ("ConvertIM3 $step failed for " + $failed.Count + " image(s) after 5 attempts:`n" +
+        ($lines -join "`n") + "`nSee $log for the ConvertIM3 output.")
+    #
+    (get-date).ToString('T') + " $msg" | Out-File $log -Append
+    Throw $msg
+    #
+}
+#
+function Get-IM3SingleOutput {
+    #
+    # find the file ConvertIM3 should have written for -FULL and -PARMS, throw if none
+    # or if ConvertIM3 reported an exception, use the newest if more than one
+    #
+    param([parameter(Position=0)][String]$pattern,
+          [parameter(Position=1)][String]$image,
+          [parameter(Position=2)][array]$output,
+          [parameter(Position=3)][String]$shredlog)
+    #
+    $found = @(Get-ChildItem $pattern -ErrorAction SilentlyContinue |
+        Sort-Object LastWriteTime -Descending)
+    #
+    # an exception means it failed even if a matching file exists (e.g. a stale one)
+    #
+    $exception = Get-IM3Exception $output
+    if ($found.Count -eq 0 -or $exception) {
+        $msg = "ConvertIM3 did not produce '$pattern' for $image"
+        if ($exception) { $msg += ": $exception" }
+        (get-date).ToString('T') + " $msg" | Out-File $shredlog -Append
+        Throw $msg
+    }
+    #
+    if ($found.Count -gt 1) {
+        Write-Verbose ("WARNING: " + $found.Count + " files match '$pattern', using the newest ($($found[0].Name))")
+    }
+    #
+    return $found[0]
     #
 }
 #
@@ -353,36 +506,39 @@ function Invoke-IM3Convert {
         #
         $log = Join-Path $dest "doShred.log"
         $cnt = 0
+        $reasons = @{}
         #
         while($images -and ($cnt -lt 5)){
             #
             Write-Debug ('       attempt:' + $cnt)
             #
-            $images | foreach-object -Parallel {
+            $results = $images | foreach-object -Parallel {
                 if ($using:interactive){
                     write-host $_
                 }                     
                 if ($env:OS -contains 'Windows_NT'){
-                    & $using:code $_ DAT -x $using:dat -o $using:dest # 2>&1>> $log
+                    $out = & $using:code $_ DAT -x $using:dat -o $using:dest 2>&1
                 } else {
                     $command = "mono $using:code $_ DAT -x "+'"'+$using:dat+'"'+" -o $using:dest"
-                    iex $command
+                    $out = iex $command 2>&1
                 }
-            } -ThrottleLimit 5| Out-File -append $log
+                [pscustomobject]@{Image = $_; Output = @($out | Out-String -Stream)}
+            } -ThrottleLimit 5
             #
             Start-Sleep 2
             #
-            $images = SEARCH-FAILED $images $dest '.Data.dat'
+            $images = SEARCH-FAILED $images $dest '.Data.dat' $reasons
+            $images = Write-IM3Results $results $log $images $reasons
             if ($images) {
-                $attemptnum = $cnt + 1
-                $numfailed = $images.length
-                Write-Verbose "    Attempt $attemptnum - Error extracting $numfailed BIN images"
-                Write-Verbose "    Failed Images:"
-                foreach ($image in $images) {
-                    Write-Verbose "    $image"
-                }
+                Write-IM3AttemptFailure ($cnt + 1) "extracting $(@($images).Count) BIN images" $images $reasons
             }
             $cnt += 1
+        }
+        #
+        # images left after the last attempt failed.
+        #
+        if ($images) {
+            Stop-IM3Convert 'BIN extraction' $images $reasons $log
         }
         #
     }
@@ -393,36 +549,37 @@ function Invoke-IM3Convert {
         #
         $log = Join-Path $dest "doShred.log"
         $cnt = 0
+        $reasons = @{}
         #
         while($images -and ($cnt -lt 5)){
             #
             Write-Debug ('       attempt:' + $cnt)
             #
-            $images | foreach-object -Parallel {
+            $results = $images | foreach-object -Parallel {
                 if ($using:interactive){
                     Write-Host $_
                 }             
                 if ($env:OS -contains 'Windows_NT'){
-                    & $using:code $_ XML -x $using:exp -o $using:dest # 2>&1>> $log
+                    $out = & $using:code $_ XML -x $using:exp -o $using:dest 2>&1
                 } else {
                     $command = "mono $using:code $_ XML -x "+'"'+$using:exp+'"'+" -o $using:dest"
-                    iex $command
+                    $out = iex $command 2>&1
                 }
-            } -ThrottleLimit 5| Out-File -append $log
+                [pscustomobject]@{Image = $_; Output = @($out | Out-String -Stream)}
+            } -ThrottleLimit 5
             #
             Start-Sleep 2
             #
-            $images = SEARCH-FAILED $images $dest '.SpectralBasisInfo.Exposure.xml'
+            $images = SEARCH-FAILED $images $dest '.SpectralBasisInfo.Exposure.xml' $reasons
+            $images = Write-IM3Results $results $log $images $reasons
             if ($images) {
-                $attemptnum = $cnt + 1
-                $numfailed = $images.length
-                Write-Verbose "    Attempt $attemptnum - Error extracting $numfailed XML images"
-                Write-Verbose "    Failed Images:"
-                foreach ($image in $images) {
-                    Write-Verbose "    $image"
-                }
+                Write-IM3AttemptFailure ($cnt + 1) "extracting $(@($images).Count) XML images" $images $reasons
             }
             $cnt += 1
+        }
+        #
+        if ($images) {
+            Stop-IM3Convert 'XML extraction' $images $reasons $log
         }
         #
     }
@@ -438,18 +595,19 @@ function Invoke-IM3Convert {
             write-host $im1
         }     
         if ($env:OS -contains 'Windows_NT'){
-            & $code $im1 XML -t 64 -o $dest 2>&1>> $shredlog
+            $out = & $code $im1 XML -t 64 -o $dest 2>&1
         } else {
             $command = "mono $code $im1 XML -t 64 -o $dest"
-            iex $command 2>&1>> $shredlog
+            $out = iex $command 2>&1
         }
+        $out | Out-File $shredlog -Append
         #
         $pattern = Join-Path $dest "*].xml"
-        $f = (get-childitem $pattern)[0].Name
+        $f = Get-IM3SingleOutput $pattern $im1 $out $shredlog
         $f2 = Join-Path $dest "$sample.Full.xml"
         if (test-path $f2) {Remove-Item $f2 -Force}
-        Rename-Item $pattern $f2 -Force
-        "$f Renamed to $sample.Full.xml" | Out-File $shredlog -Append
+        Rename-Item -LiteralPath $f.FullName $f2 -Force
+        "$($f.Name) Renamed to $sample.Full.xml" | Out-File $shredlog -Append
         #
     }
     #
@@ -464,18 +622,19 @@ function Invoke-IM3Convert {
             write-host $im1
         }        
         if ($env:OS -contains 'Windows_NT'){
-            & $code $im1 XML -x $glb_prms -o $dest 2>&1>> $shredlog
+            $out = & $code $im1 XML -x $glb_prms -o $dest 2>&1
         } else {
             $command = "mono $code $im1 XML -x "+'"'+$glb_prms+'"'+" -o $dest"
-            iex $command 2>&1>> $shredlog
+            $out = iex $command 2>&1
         }
+        $out | Out-File $shredlog -Append
         # 
         $pattern = Join-Path $dest "*State.xml"
-        $f = (get-childitem $pattern)[0].Name
+        $f = Get-IM3SingleOutput $pattern $im1 $out $shredlog
         $f2 = Join-Path $dest "$sample.Parameters.xml"
         if (test-path $f2) {Remove-Item $f2 -Force}
-        Rename-Item $pattern $f2 -Force
-        "$f Renamed to $sample.Parameters.xml" | Out-File $shredlog -Append
+        Rename-Item -LiteralPath $f.FullName $f2 -Force
+        "$($f.Name) Renamed to $sample.Parameters.xml" | Out-File $shredlog -Append
         #
     }
     #
@@ -487,12 +646,13 @@ function Invoke-IM3Convert {
         $cnt = 0
         #
         $savedimagenames = $images
+        $reasons = @{}
         #
         while($images -and ($cnt -lt 5)){
             #
             Write-Debug ('       attempt:' + $cnt)
             #
-            $images | foreach-object -Parallel {
+            $results = $images | foreach-object -Parallel {
                 if ($using:interactive){
                     write-host $_
                 }
@@ -501,29 +661,25 @@ function Invoke-IM3Convert {
                 $in = $in.Replace('.im3', '.Data.dat')
                 #
                 if ($env:OS -contains 'Windows_NT'){
-                    & $using:code $_ IM3 -x $using:injecttxt -i $in -o $using:dest # 2>&1>> $log
+                    $out = & $using:code $_ IM3 -x $using:injecttxt -i $in -o $using:dest 2>&1
                 } else {
                     $command = "mono $using:code $_ IM3 -x "+'"'+$using:injecttxt+'"'+" -i $in -o $using:dest"
-                    iex $command
+                    $out = iex $command 2>&1
                 }
-            } -ThrottleLimit 5| Out-File -append $log
+                [pscustomobject]@{Image = $_; Output = @($out | Out-String -Stream)}
+            } -ThrottleLimit 5
             #
             Start-Sleep 2
             #
-            $images = SEARCH-FAILED $images $dest '.injected.im3'
+            $images = SEARCH-FAILED $images $dest '.injected.im3' $reasons
+            $images = Write-IM3Results $results $log $images $reasons
             if ($images) {
-                $attemptnum = $cnt + 1
-                $numfailed = $images.length
-                Write-Verbose "    Attempt $attemptnum - Error injecting $numfailed images"
-                Write-Verbose "    Failed Images:"
-                foreach ($image in $images) {
-                    Write-Verbose "    $image"
-                }
+                Write-IM3AttemptFailure ($cnt + 1) "injecting $(@($images).Count) images" $images $reasons
             }
             $cnt += 1
         }
         #
-        $savedimagenames | foreach-object {
+        $savedimagenames | where-object { $images -notcontains $_ } | foreach-object {
             #
             # renamed injected.im3s to im3s
             #    
@@ -549,10 +705,10 @@ function Invoke-IM3Convert {
             #
         }
         #
-    }
-    #
-    if ($cnt -eq 5) {
-        Throw "ConvertIM3 failed to process images after 5 attempts"
+        if ($images) {
+            Stop-IM3Convert 'injection' $images $reasons $log
+        }
+        #
     }
 }
 #
@@ -560,20 +716,25 @@ function SEARCH-FAILED {
     #
     param([parameter(Position=0)][array]$images,
     [parameter(Position=1)][String]$dest,
-    [parameter(Position=2)][String]$filespec)
+    [parameter(Position=2)][String]$filespec,
+    [parameter(Position=3)][hashtable]$reasons = @{})
     #
-    # find images that did not extract at all
+    # find images that did not extract at all. $reasons is filled in with
+    # why each image that is returned was considered failed
     #
     $pattern = Join-Path $dest "*"
     $output = Get-ChildItem ($pattern) ('*' + $filespec)
     if (!$output){
+        foreach ($image in $images) {
+            $reasons[$image] = "no '*$filespec' output files found"
+        }
         return $images
     }
     #
     write-debug '       search failed'
     #
     $outputnames = [array]($output.Name)
-    $compareimagenames = (Split-Path $images -Leaf) -replace '.im3', $filespec
+    $compareimagenames = (Split-Path $images -Leaf) -replace ([regex]::escape('.im3') + '$'), $filespec
     $imagepath = Split-Path $images[0]
     #
     write-debug ('        filespec: ' + $filespec)
@@ -588,13 +749,16 @@ function SEARCH-FAILED {
     #
     if ($comparison.InputObject){
         ($comparison.InputObject) | foreach-Object{
-            $outimages += Join-Path $imagepath ($_  -replace $filespec, '.im3')
+            $missing = Join-Path $imagepath ($_  -replace ([regex]::escape($filespec) + '$'), '.im3')
+            $outimages += $missing
+            $reasons[$missing] = "output file '$_' not found"
         }
     }
     #
     write-debug ('        n files after not found file check: ' + $outimages.Length)
     #
-    # Find potential corrupt files
+    # Find potential corrupt files. The minimum sizes are fixed thresholds, so a
+    # legitimately smaller image is reported as failed here
     #
     if ($filespec -match '.Data.dat'){
         #
@@ -613,8 +777,11 @@ function SEARCH-FAILED {
     Write-Debug ('        min file size: ' + ($output | measure-object length  -Minimum).Minimum)
     #
     $filteredoutput = $output | Where-Object {$_.Length -lt $min}
-    $outimages += (($filteredoutput -replace [regex]::escape($dest), $imagepath) `
-        -replace $filespec, '.im3')
+    foreach ($small in $filteredoutput) {
+        $smallimage = Join-Path $imagepath ($small.Name -replace ([regex]::escape($filespec) + '$'), '.im3')
+        $outimages += $smallimage
+        $reasons[$smallimage] = "output file below the expected minimum of " + ('{0:N0}' -f $min) + " bytes"
+    }
     #
     write-debug ('        n files after wrong file size check: ' + $outimages.Length)
     #

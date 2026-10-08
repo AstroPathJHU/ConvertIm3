@@ -29,13 +29,21 @@ ConvertIm3Path & ConvertIm3Cohort are soft wrappers written in powershell for th
  
 Usage: 
 - To "shred" a directory of im3s use:
-  - ```ConvertIm3Path -<base> -<FWpath> -<SlideID> -s [-a -d -xml]```
-  - Optional arguements:
-	  - ```-d```: only extract the binary bitmap for each image into the output directory
+  - ```ConvertIm3Path <dataroot> <fwroot> <SlideID> -shred [-all -dat -xml -xmlfull] [-interactive] [-images <paths>]```
+  - Reads the im3s from ```<dataroot>\<SlideID>\im3\Scan<highest number>\MSI``` and writes to ```<fwroot>\<SlideID>```
+  - Optional arguments (defaults to ```-all``` when none are supplied; otherwise pass at least one of ```-all```, ```-dat```, ```-xml```, ```-xmlfull```):
+	  - ```-all```: do everything below (```-dat``` and ```-xml```)
+	  - ```-dat```: only extract the binary bitmap for each image into the output directory
 	  - ```-xml```: extract the xml information only for each image, xml information includes:
 		  - one <sample>.Parameters.xml: sample location, shape, and scale
 		  - one <sample>.Full.xml: the full xml of an im3 without the bitmap
 		  - a .SpectralBasisInfo.Exposure.xml for each image containing the exposure times of the image
-- To "inject" a directory of .dat binary blobs for each image back into the directory of im3s use:
-  - ```ConvertIm3Path -<base> -<FWpath> -<SlideID> -i```
-  - Exports the new '.im3s' into the ```<flatw_im3_path>``` directory
+	  - ```-xmlfull```: only the <sample>.Parameters.xml and <sample>.Full.xml from ```-xml```
+	  - ```-interactive```: write each image name to the host as it is processed
+	  - ```-images```: only process these im3 files (full paths) instead of the whole MSI folder
+- To "inject" a directory of .Data.dat binary blobs for each image back into the directory of im3s use:
+  - ```ConvertIm3Path <dataroot> <fwroot> <SlideID> -inject```
+  - Reads the .Data.dat files from ```<fwroot>\<SlideID>```
+  - Exports the new '.im3s' into ```<dataroot>\<SlideID>\im3\flatw``` (the injected files are renamed from <name>.injected.im3 to <name>.im3)
+  - Each .Data.dat in ```<fwroot>\<SlideID>``` is renamed to <name>.fw once it has been injected
+- Parameter names may only be abbreviated to a unique prefix, so use the full ```-shred``` and ```-inject``` (```-s``` and ```-i``` are ambiguous and will be rejected).
