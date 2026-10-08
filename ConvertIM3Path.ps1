@@ -10,7 +10,7 @@ Usage:
  To "shred" a directory of im3s in the CS format use:
     ConvertIm3Path <dataroot> <fwroot> <sample> -shred [-all -dat -xml -xmlfull] [-interactive] [-images <paths>]
     Reads the im3s from <dataroot>\<sample>\im3\Scan<highest number>\MSI and writes to <fwroot>\<sample>
-    Optional arguments (pass at least one of -all, -dat, -xml, -xmlfull):
+    Optional arguments (defaults to -all when none are supplied; otherwise pass at least one of -all, -dat, -xml, -xmlfull):
 	-all: do everything below (-dat and -xml)
 	-dat: only extract the binary bitmap for each image into the output directory
 	-xml: extract the xml information only for each image, xml information includes:
