@@ -6,19 +6,27 @@ is part of the flat fielding work flow for the JHU astropath pipeline.
 
 Created by: Alex Szalay, Benjamin Green - JHU - 04/14/2020
 
-Usage: 
+Usage:
  To "shred" a directory of im3s in the CS format use:
-    Im3ConvertPath -dataroot -fwpath -sample -s [-a -d -xml]
-    Optional arguements:
-	-d: only extract the binary bitmap for each image into the output directory
+    ConvertIm3Path <dataroot> <fwroot> <sample> -shred [-all -dat -xml -xmlfull] [-interactive] [-images <paths>]
+    Reads the im3s from <dataroot>\<sample>\im3\Scan<highest number>\MSI and writes to <fwroot>\<sample>
+    Optional arguments (pass at least one of -all, -dat, -xml, -xmlfull):
+	-all: do everything below (-dat and -xml)
+	-dat: only extract the binary bitmap for each image into the output directory
 	-xml: extract the xml information only for each image, xml information includes:
 		1) one <sample>.Parameters.xml: sample location, shape, and scale
 		2) one <sample>.Full.xml: the full xml of an im3 without the bitmap
-		3) an .SpectralBasisInfo.Exposure.xml for each image containing the 
+		3) an .SpectralBasisInfo.Exposure.xml for each image containing the
 			exposure times of the image
- To "inject" a directory of .fw binary blobs for each image back into the directory of im3s use:
-    Im3ConvertPath -datapath -fwpath -sample -i
-    Exports the new '.im3s' into the flatw directory
+	-xmlfull: only the <sample>.Parameters.xml and <sample>.Full.xml from (-xml)
+	-interactive: write each image name to the host as it is processed
+	-images: only process these im3 files (full paths) instead of the whole MSI folder
+ To "inject" a directory of .Data.dat binary blobs for each image back into the directory of im3s use:
+    ConvertIm3Path <dataroot> <fwroot> <sample> -inject
+    Reads the .Data.dat files from <fwroot>\<sample>
+    Exports the new '.im3s' into <dataroot>\<sample>\im3\flatw (the injected files are 
+    renamed from <name>.injected.im3 to <name>.im3)
+    Each .Data.dat in <fwroot>\<sample> is renamed to <name>.fw once it has been injected
 #--------------------------------------------------------------------------------------------#>
 function ConvertIm3Path{ 
     #
