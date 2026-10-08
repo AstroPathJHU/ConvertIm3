@@ -43,6 +43,7 @@ function ConvertIm3Path{
            [Parameter()][switch]$dat)
     #
     test-convertim3params $PSBoundParameters
+    test-convertim3exe
     $scan = search-scan $root1 $sample
     $IM3 = search-im3 $scan
     $flatw = search-flatw $root2 $sample -inject:$inject
@@ -115,6 +116,12 @@ function test-convertim3params{
         Throw "Usage: ConvertIm3Path dataroot dest sample -inject -shred:[-all -dat -xml -xmlfull]"
     }
     #
+    # shred and inject are exclusive, shred would otherwise run and inject be silently ignored
+    #
+    if ($myparams.inject -and $myparams.shred) {
+        Throw "-shred and -inject cannot be used together, run ConvertIm3Path once for each"
+    }
+    #
     # set default to all for shred if no other value given
     #
     if ($myparams.shred -and !$myparams.all -and !$myparams.dat -and !$myparams.xml -and !$myparams.xmlfull) { $myparams.all = $true }
@@ -133,6 +140,22 @@ function test-convertim3params{
             Write-Verbose "WARNING: '-xmlfull' not valid for option inject. IGNORING"
         }
         #
+    }
+    #
+}
+#
+function test-convertim3exe {
+    #
+    # check that ConvertIM3.exe, and mono on non-windows, are available before
+    # any folders are created or any images are processed
+    #
+    $code = Join-Path $PSScriptRoot "ConvertIM3.exe"
+    if (!(test-path -LiteralPath $code)) {
+        Throw "ConvertIM3.exe not found at $code; it must be in the same folder as ConvertIM3Path.ps1"
+    }
+    #
+    if (!($env:OS -eq 'Windows_NT') -and !(get-command mono -ErrorAction SilentlyContinue)) {
+        Throw "'mono' is required to run ConvertIM3.exe on this platform but was not found on the PATH"
     }
     #
 }
