@@ -362,15 +362,77 @@ function write-convertim3log {
     #
 }
 #
-function search-imagenames{
+function Get-IM3Exception {
     #
-    param([parameter(Position=0)][String[]]$IM3,
-          [parameter(Position=1)][String[]]$images
-        )
+    # ConvertIM3 reports a failure by printing 'Exception: <message>' to the output
+    # and exiting 0, so the exit code cannot be used to tell that it failed
     #
-
+    param([parameter(Position=0)][array]$output)
     #
-    return $images
+    $line = $output | Where-Object {$_ -like 'Exception: *'} | Select-Object -First 1
+    if ($line) { return "ConvertIM3 error: " + $line.Substring(11) }
+    #
+}
+#
+function Write-IM3Results {
+    #
+    # write the ConvertIM3 output to the log, and for each image that failed use
+    # the exception ConvertIM3 reported, if any, as the reason
+    #
+    param([parameter(Position=0)][array]$results,
+          [parameter(Position=1)][String]$log,
+          [parameter(Position=2)][array]$failed,
+          [parameter(Position=3)][hashtable]$reasons)
+    #
+    $results | foreach-object { $_.Output } | Out-File -append $log
+    foreach ($result in $results) {
+        if ($failed -contains $result.Image) {
+            $exception = Get-IM3Exception $result.Output
+            if ($exception) { $reasons[$result.Image] = $exception }
+        }
+    }
+    #
+}
+#
+function Write-IM3AttemptFailure {
+    #
+    # verbose message for a failed attempt, with the reason for each failed image
+    #
+    param([parameter(Position=0)][int]$attempt,
+          [parameter(Position=1)][String]$summary,
+          [parameter(Position=2)][array]$images,
+          [parameter(Position=3)][hashtable]$reasons)
+    #
+    Write-Verbose "    Attempt $attempt - Error $summary"
+    foreach ($image in $images) {
+        Write-Verbose "    $image - $($reasons[$image])"
+    }
+    #
+}
+#
+function Stop-IM3Convert {
+    #
+    # throw for images that still failed after the last attempt, also written to the log
+    #
+    param([parameter(Position=0)][String]$step,
+          [parameter(Position=1)][array]$failed,
+          [parameter(Position=2)][hashtable]$reasons,
+          [parameter(Position=3)][String]$log)
+    #
+    # one line per distinct reason, with an example image
+    #
+    $groups = @($failed | group-object {$reasons[$_]})
+    $lines = $groups | select-object -first 10 | foreach-object {
+        $line = "    " + [IO.Path]::GetFileName($_.Group[0]) + " - " + $_.Name
+        if ($_.Count -gt 1) { $line += " (and " + ($_.Count - 1) + " more)" }
+        $line
+    }
+    if ($groups.Count -gt 10) { $lines += "    ... and " + ($groups.Count - 10) + " more reasons" }
+    $msg = ("ConvertIM3 $step failed for " + $failed.Count + " image(s) after 5 attempts:`n" +
+        ($lines -join "`n") + "`nSee $log for the ConvertIM3 output.")
+    #
+    (get-date).ToString('T') + " $msg" | Out-File $log -Append
+    Throw $msg
     #
 }
 #
@@ -410,36 +472,39 @@ function Invoke-IM3Convert {
         #
         $log = Join-Path $dest "doShred.log"
         $cnt = 0
+        $reasons = @{}
         #
         while($images -and ($cnt -lt 5)){
             #
             Write-Debug ('       attempt:' + $cnt)
             #
-            $images | foreach-object -Parallel {
+            $results = $images | foreach-object -Parallel {
                 if ($using:interactive){
                     write-host $_
                 }                     
                 if ($env:OS -contains 'Windows_NT'){
-                    & $using:code $_ DAT -x $using:dat -o $using:dest # 2>&1>> $log
+                    $out = & $using:code $_ DAT -x $using:dat -o $using:dest 2>&1
                 } else {
                     $command = "mono $using:code $_ DAT -x "+'"'+$using:dat+'"'+" -o $using:dest"
-                    iex $command
+                    $out = iex $command 2>&1
                 }
-            } -ThrottleLimit 5| Out-File -append $log
+                [pscustomobject]@{Image = $_; Output = @($out | Out-String -Stream)}
+            } -ThrottleLimit 5
             #
             Start-Sleep 2
             #
-            $images = SEARCH-FAILED $images $dest '.Data.dat'
+            $images = SEARCH-FAILED $images $dest '.Data.dat' $reasons
+            Write-IM3Results $results $log $images $reasons
             if ($images) {
-                $attemptnum = $cnt + 1
-                $numfailed = $images.length
-                Write-Verbose "    Attempt $attemptnum - Error extracting $numfailed BIN images"
-                Write-Verbose "    Failed Images:"
-                foreach ($image in $images) {
-                    Write-Verbose "    $image"
-                }
+                Write-IM3AttemptFailure ($cnt + 1) "extracting $(@($images).Count) BIN images" $images $reasons
             }
             $cnt += 1
+        }
+        #
+        # images left after the last attempt failed.
+        #
+        if ($images) {
+            Stop-IM3Convert 'BIN extraction' $images $reasons $log
         }
         #
     }
@@ -450,36 +515,37 @@ function Invoke-IM3Convert {
         #
         $log = Join-Path $dest "doShred.log"
         $cnt = 0
+        $reasons = @{}
         #
         while($images -and ($cnt -lt 5)){
             #
             Write-Debug ('       attempt:' + $cnt)
             #
-            $images | foreach-object -Parallel {
+            $results = $images | foreach-object -Parallel {
                 if ($using:interactive){
                     Write-Host $_
                 }             
                 if ($env:OS -contains 'Windows_NT'){
-                    & $using:code $_ XML -x $using:exp -o $using:dest # 2>&1>> $log
+                    $out = & $using:code $_ XML -x $using:exp -o $using:dest 2>&1
                 } else {
                     $command = "mono $using:code $_ XML -x "+'"'+$using:exp+'"'+" -o $using:dest"
-                    iex $command
+                    $out = iex $command 2>&1
                 }
-            } -ThrottleLimit 5| Out-File -append $log
+                [pscustomobject]@{Image = $_; Output = @($out | Out-String -Stream)}
+            } -ThrottleLimit 5
             #
             Start-Sleep 2
             #
-            $images = SEARCH-FAILED $images $dest '.SpectralBasisInfo.Exposure.xml'
+            $images = SEARCH-FAILED $images $dest '.SpectralBasisInfo.Exposure.xml' $reasons
+            Write-IM3Results $results $log $images $reasons
             if ($images) {
-                $attemptnum = $cnt + 1
-                $numfailed = $images.length
-                Write-Verbose "    Attempt $attemptnum - Error extracting $numfailed XML images"
-                Write-Verbose "    Failed Images:"
-                foreach ($image in $images) {
-                    Write-Verbose "    $image"
-                }
+                Write-IM3AttemptFailure ($cnt + 1) "extracting $(@($images).Count) XML images" $images $reasons
             }
             $cnt += 1
+        }
+        #
+        if ($images) {
+            Stop-IM3Convert 'XML extraction' $images $reasons $log
         }
         #
     }
@@ -544,12 +610,13 @@ function Invoke-IM3Convert {
         $cnt = 0
         #
         $savedimagenames = $images
+        $reasons = @{}
         #
         while($images -and ($cnt -lt 5)){
             #
             Write-Debug ('       attempt:' + $cnt)
             #
-            $images | foreach-object -Parallel {
+            $results = $images | foreach-object -Parallel {
                 if ($using:interactive){
                     write-host $_
                 }
@@ -558,24 +625,20 @@ function Invoke-IM3Convert {
                 $in = $in.Replace('.im3', '.Data.dat')
                 #
                 if ($env:OS -contains 'Windows_NT'){
-                    & $using:code $_ IM3 -x $using:injecttxt -i $in -o $using:dest # 2>&1>> $log
+                    $out = & $using:code $_ IM3 -x $using:injecttxt -i $in -o $using:dest 2>&1
                 } else {
                     $command = "mono $using:code $_ IM3 -x "+'"'+$using:injecttxt+'"'+" -i $in -o $using:dest"
-                    iex $command
+                    $out = iex $command 2>&1
                 }
-            } -ThrottleLimit 5| Out-File -append $log
+                [pscustomobject]@{Image = $_; Output = @($out | Out-String -Stream)}
+            } -ThrottleLimit 5
             #
             Start-Sleep 2
             #
-            $images = SEARCH-FAILED $images $dest '.injected.im3'
+            $images = SEARCH-FAILED $images $dest '.injected.im3' $reasons
+            Write-IM3Results $results $log $images $reasons
             if ($images) {
-                $attemptnum = $cnt + 1
-                $numfailed = $images.length
-                Write-Verbose "    Attempt $attemptnum - Error injecting $numfailed images"
-                Write-Verbose "    Failed Images:"
-                foreach ($image in $images) {
-                    Write-Verbose "    $image"
-                }
+                Write-IM3AttemptFailure ($cnt + 1) "injecting $(@($images).Count) images" $images $reasons
             }
             $cnt += 1
         }
@@ -606,10 +669,10 @@ function Invoke-IM3Convert {
             #
         }
         #
-    }
-    #
-    if ($cnt -eq 5) {
-        Throw "ConvertIM3 failed to process images after 5 attempts"
+        if ($images) {
+            Stop-IM3Convert 'injection' $images $reasons $log
+        }
+        #
     }
 }
 #
@@ -617,20 +680,25 @@ function SEARCH-FAILED {
     #
     param([parameter(Position=0)][array]$images,
     [parameter(Position=1)][String]$dest,
-    [parameter(Position=2)][String]$filespec)
+    [parameter(Position=2)][String]$filespec,
+    [parameter(Position=3)][hashtable]$reasons = @{})
     #
-    # find images that did not extract at all
+    # find images that did not extract at all. $reasons is filled in with
+    # why each image that is returned was considered failed
     #
     $pattern = Join-Path $dest "*"
     $output = Get-ChildItem ($pattern) ('*' + $filespec)
     if (!$output){
+        foreach ($image in $images) {
+            $reasons[$image] = "no '*$filespec' output files found"
+        }
         return $images
     }
     #
     write-debug '       search failed'
     #
     $outputnames = [array]($output.Name)
-    $compareimagenames = (Split-Path $images -Leaf) -replace '.im3', $filespec
+    $compareimagenames = (Split-Path $images -Leaf) -replace ([regex]::escape('.im3') + '$'), $filespec
     $imagepath = Split-Path $images[0]
     #
     write-debug ('        filespec: ' + $filespec)
@@ -645,13 +713,16 @@ function SEARCH-FAILED {
     #
     if ($comparison.InputObject){
         ($comparison.InputObject) | foreach-Object{
-            $outimages += Join-Path $imagepath ($_  -replace $filespec, '.im3')
+            $missing = Join-Path $imagepath ($_  -replace ([regex]::escape($filespec) + '$'), '.im3')
+            $outimages += $missing
+            $reasons[$missing] = "output file '$_' not found"
         }
     }
     #
     write-debug ('        n files after not found file check: ' + $outimages.Length)
     #
-    # Find potential corrupt files
+    # Find potential corrupt files. The minimum sizes are fixed thresholds, so a
+    # legitimately smaller image is reported as failed here
     #
     if ($filespec -match '.Data.dat'){
         #
@@ -670,8 +741,11 @@ function SEARCH-FAILED {
     Write-Debug ('        min file size: ' + ($output | measure-object length  -Minimum).Minimum)
     #
     $filteredoutput = $output | Where-Object {$_.Length -lt $min}
-    $outimages += (($filteredoutput -replace [regex]::escape($dest), $imagepath) `
-        -replace $filespec, '.im3')
+    foreach ($small in $filteredoutput) {
+        $smallimage = Join-Path $imagepath ($small.Name -replace ([regex]::escape($filespec) + '$'), '.im3')
+        $outimages += $smallimage
+        $reasons[$smallimage] = "output file below the expected minimum of " + ('{0:N0}' -f $min) + " bytes"
+    }
     #
     write-debug ('        n files after wrong file size check: ' + $outimages.Length)
     #
