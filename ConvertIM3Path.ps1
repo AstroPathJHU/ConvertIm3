@@ -88,7 +88,8 @@ function ConvertIm3Path{
         $pattern = Join-Path $flatw "*"
         $dats = get-childitem $pattern '*.dat'
         if (!($dats.Count -eq $images.Count)) { 
-            Write-Verbose "$flatw\*.fw N File(s) and $IM3\*im3 N File(s) do not match"
+            Write-Verbose ("WARNING: " + $dats.Count + " .dat file(s) in $flatw but " +
+                $images.Count + " .im3 file(s) to inject from $IM3")
         }
         #
         $dest = Join-Path $root1 "$sample\im3\flatw"
@@ -168,9 +169,18 @@ function search-scan {
     # find highest scan folder, exit if im3 directory not found
     #
     $IM3 = Join-Path $root1 "$sample\im3"
-    if (!(test-path $IM3)) { 
-       Throw "IM3 root path $IM3 not found"
+    if (!(test-path $IM3)) {
+        #
+        # say which level is missing: dataroot, sample folder, or im3 folder
+        #
+        $samplepath = Join-Path $root1 $sample
+        if (!(test-path -LiteralPath $root1)) {
+            Throw "IM3 root path $IM3 not found: data root '$root1' does not exist"
+        } elseif (!(test-path -LiteralPath $samplepath)) {
+            Throw ("IM3 root path $IM3 not found: sample folder '$samplepath' does not exist")
         }
+        Throw ("IM3 root path $IM3 not found: sample folder '$samplepath' has no 'im3' folder")
+    }
     #
     # only folders named exactly Scan<number> are valid.
     #
@@ -205,8 +215,8 @@ function search-im3 {
     # build full im3 path, exit if not found
     #
     $IM3 = Join-Path $scan "MSI"
-    if (!(test-path $IM3)) { 
-        Throw "IM3 subpath $IM3 not found"
+    if (!(test-path $IM3)) {
+        Throw "IM3 subpath $IM3 not found: the highest scan folder '$scan' has no 'MSI' folder"
     }
     #
     return $IM3
@@ -224,9 +234,10 @@ function search-flatw {
     #
     $flatw = Join-Path $root2 $sample
     if (!(test-path $flatw) -and !$inject) {
+        Write-Verbose "output folder $flatw not found, creating it"
         new-item $flatw -itemtype directory | Out-Null
     } elseif (!(test-path $flatw) -and $inject){
-        Throw "flatw path $flatw not found"; return
+        Throw "flatw path $flatw not found"
     }
     #
     return $flatw
