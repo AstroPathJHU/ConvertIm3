@@ -10,7 +10,7 @@ Usage:
  To "shred" a directory of im3s in the CS format use:
     ConvertIm3Path <dataroot> <fwroot> <sample> -shred [-all -dat -xml -xmlfull] [-interactive] [-images <paths>]
     Reads the im3s from <dataroot>\<sample>\im3\Scan<highest number>\MSI and writes to <fwroot>\<sample>
-    Optional arguments (defaults to -all when none are supplied; otherwise pass at least one of -all, -dat, -xml, -xmlfull):
+    Optional arguments (defaults to -all when none are supplied; otherwise pass at least one of -all, -dat, -xml, -xmlfull):
 	-all: do everything below (-dat and -xml)
 	-dat: only extract the binary bitmap for each image into the output directory
 	-xml: extract the xml information only for each image, xml information includes:
@@ -439,6 +439,37 @@ function Stop-IM3Convert {
     #
 }
 #
+function Get-IM3SingleOutput {
+    #
+    # find the file ConvertIM3 should have written for -FULL and -PARMS, throw if none
+    # or if ConvertIM3 reported an exception, use the newest if more than one
+    #
+    param([parameter(Position=0)][String]$pattern,
+          [parameter(Position=1)][String]$image,
+          [parameter(Position=2)][array]$output,
+          [parameter(Position=3)][String]$shredlog)
+    #
+    $found = @(Get-ChildItem $pattern -ErrorAction SilentlyContinue |
+        Sort-Object LastWriteTime -Descending)
+    #
+    # an exception means it failed even if a matching file exists (e.g. a stale one)
+    #
+    $exception = Get-IM3Exception $output
+    if ($found.Count -eq 0 -or $exception) {
+        $msg = "ConvertIM3 did not produce '$pattern' for $image"
+        if ($exception) { $msg += ": $exception" }
+        (get-date).ToString('T') + " $msg" | Out-File $shredlog -Append
+        Throw $msg
+    }
+    #
+    if ($found.Count -gt 1) {
+        Write-Verbose ("WARNING: " + $found.Count + " files match '$pattern', using the newest ($($found[0].Name))")
+    }
+    #
+    return $found[0]
+    #
+}
+#
 function Invoke-IM3Convert {
     <# ----------------------------------------------------- 
     # Part of the shredPath workflow. This function
@@ -564,18 +595,19 @@ function Invoke-IM3Convert {
             write-host $im1
         }     
         if ($env:OS -contains 'Windows_NT'){
-            & $code $im1 XML -t 64 -o $dest 2>&1>> $shredlog
+            $out = & $code $im1 XML -t 64 -o $dest 2>&1
         } else {
             $command = "mono $code $im1 XML -t 64 -o $dest"
-            iex $command 2>&1>> $shredlog
+            $out = iex $command 2>&1
         }
+        $out | Out-File $shredlog -Append
         #
         $pattern = Join-Path $dest "*].xml"
-        $f = (get-childitem $pattern)[0].Name
+        $f = Get-IM3SingleOutput $pattern $im1 $out $shredlog
         $f2 = Join-Path $dest "$sample.Full.xml"
         if (test-path $f2) {Remove-Item $f2 -Force}
-        Rename-Item $pattern $f2 -Force
-        "$f Renamed to $sample.Full.xml" | Out-File $shredlog -Append
+        Rename-Item -LiteralPath $f.FullName $f2 -Force
+        "$($f.Name) Renamed to $sample.Full.xml" | Out-File $shredlog -Append
         #
     }
     #
@@ -590,18 +622,19 @@ function Invoke-IM3Convert {
             write-host $im1
         }        
         if ($env:OS -contains 'Windows_NT'){
-            & $code $im1 XML -x $glb_prms -o $dest 2>&1>> $shredlog
+            $out = & $code $im1 XML -x $glb_prms -o $dest 2>&1
         } else {
             $command = "mono $code $im1 XML -x "+'"'+$glb_prms+'"'+" -o $dest"
-            iex $command 2>&1>> $shredlog
+            $out = iex $command 2>&1
         }
+        $out | Out-File $shredlog -Append
         # 
         $pattern = Join-Path $dest "*State.xml"
-        $f = (get-childitem $pattern)[0].Name
+        $f = Get-IM3SingleOutput $pattern $im1 $out $shredlog
         $f2 = Join-Path $dest "$sample.Parameters.xml"
         if (test-path $f2) {Remove-Item $f2 -Force}
-        Rename-Item $pattern $f2 -Force
-        "$f Renamed to $sample.Parameters.xml" | Out-File $shredlog -Append
+        Rename-Item -LiteralPath $f.FullName $f2 -Force
+        "$($f.Name) Renamed to $sample.Parameters.xml" | Out-File $shredlog -Append
         #
     }
     #
