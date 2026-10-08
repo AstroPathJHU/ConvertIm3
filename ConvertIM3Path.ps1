@@ -141,12 +141,27 @@ function search-scan {
        Throw "IM3 root path $IM3 not found"
         }
     #
-    $sub = get-childitem $IM3 -Directory
-        foreach ($sub1 in $sub) {
-            if($sub1.Name -like "Scan*") { 
-                $scan = Join-Path $IM3 $sub1.Name
-            }
+    # only folders named exactly Scan<number> are valid.
+    #
+    $sub = get-childitem -LiteralPath $IM3 -Directory |
+        where-object {$_.Name -like "Scan*"}
+    foreach ($sub1 in $sub) {
+        if ($sub1.Name -notmatch '^Scan\d+$') {
+            Write-Verbose ("WARNING: ignoring folder '" + $sub1.Name + 
+                "' in $IM3; scan folders must be named Scan<number> (e.g. Scan1)")
         }
+    }
+    #
+    $valid = $sub | where-object {$_.Name -match '^Scan\d+$'}
+    if (!$valid) {
+        Throw ("No valid scan folder (Scan<number>) found in $IM3. " + 
+            "Folders found: " + ((get-childitem -LiteralPath $IM3 -Directory).Name -join ', '))
+    }
+    #
+    $scanname = ($valid |
+        sort-object {[int]$_.Name.substring(4)} |
+        select-object -last 1).Name
+    $scan = Join-Path $IM3 $scanname
     #
     return $scan
     #
