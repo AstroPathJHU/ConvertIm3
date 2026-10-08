@@ -646,7 +646,7 @@ function Invoke-IM3Convert {
             $cnt += 1
         }
         #
-        $savedimagenames | foreach-object {
+        $savedimagenames | where-object { $images -notcontains $_ } | foreach-object {
             #
             # renamed injected.im3s to im3s
             #    
