@@ -385,12 +385,15 @@ function Write-IM3Results {
           [parameter(Position=3)][hashtable]$reasons)
     #
     $results | foreach-object { $_.Output } | Out-File -append $log
+    $failed = @($failed | where-object {$_})
     foreach ($result in $results) {
-        if ($failed -contains $result.Image) {
-            $exception = Get-IM3Exception $result.Output
-            if ($exception) { $reasons[$result.Image] = $exception }
+        $exception = Get-IM3Exception $result.Output
+        if ($exception) {
+            $reasons[$result.Image] = $exception
+            if ($failed -notcontains $result.Image) { $failed += $result.Image }
         }
     }
+    return $failed
     #
 }
 #
@@ -494,7 +497,7 @@ function Invoke-IM3Convert {
             Start-Sleep 2
             #
             $images = SEARCH-FAILED $images $dest '.Data.dat' $reasons
-            Write-IM3Results $results $log $images $reasons
+            $images = Write-IM3Results $results $log $images $reasons
             if ($images) {
                 Write-IM3AttemptFailure ($cnt + 1) "extracting $(@($images).Count) BIN images" $images $reasons
             }
@@ -537,7 +540,7 @@ function Invoke-IM3Convert {
             Start-Sleep 2
             #
             $images = SEARCH-FAILED $images $dest '.SpectralBasisInfo.Exposure.xml' $reasons
-            Write-IM3Results $results $log $images $reasons
+            $images = Write-IM3Results $results $log $images $reasons
             if ($images) {
                 Write-IM3AttemptFailure ($cnt + 1) "extracting $(@($images).Count) XML images" $images $reasons
             }
@@ -636,7 +639,7 @@ function Invoke-IM3Convert {
             Start-Sleep 2
             #
             $images = SEARCH-FAILED $images $dest '.injected.im3' $reasons
-            Write-IM3Results $results $log $images $reasons
+            $images = Write-IM3Results $results $log $images $reasons
             if ($images) {
                 Write-IM3AttemptFailure ($cnt + 1) "injecting $(@($images).Count) images" $images $reasons
             }
